@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Audit Logs</title><link rel="stylesheet" href="/static/styles.css"/></head>
+<body>
+  <div class="container">
+    <h2>Audit Logs</h2>
+    <div id="logs"></div>
+    <p><a href="/admin">Back</a></p>
+  </div>
+  <script>
+    async function loadLogs(){
+      const r = await fetch('/api/audit?limit=500'); const j = await r.json();
+      const el = document.getElementById('logs'); el.innerHTML='';
+      j.forEach(l => {
+        const d = document.createElement('div');
+        d.textContent = `${l.created_at} — actor:${l.actor_id} target:${l.target_id} action:${l.action} details:${l.details}`;
+        el.appendChild(d);
+      });
+    }
+    loadLogs();
+  </script>
+</body>
+</html>

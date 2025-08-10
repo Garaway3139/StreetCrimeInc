@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Staff Console - Street Crime Inc</title>
+  <link rel="stylesheet" href="/static/styles.css"/>
+</head>
+<body>
+  <div class="container">
+    <header><h1>Staff Console</h1><div><a href="/">Back</a> | <a href="/admin/audit">Audit Logs</a></div></header>
+    <main>
+      <div>
+        <button id="refreshBtn">Refresh Players</button>
+        <input id="filter" placeholder="filter username"/>
+      </div>
+
+      <table id="playersTable" border="1" style="width:100%;margin-top:8px">
+        <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Cash</th><th>Rep</th><th>Rank</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <h3>Live Console</h3>
+      <div id="console" style="height:220px;overflow:auto;background:#111;padding:8px;color:#6fe;border-radius:6px"></div>
+
+    </main>
+  </div>
+
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <script src="/static/admin.js"></script>
+</body>
+</html>
