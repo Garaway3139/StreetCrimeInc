@@ -26,7 +26,7 @@ login_manager.login_view = 'login'
 socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet', message_queue=REDIS_URL)
 redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
 
-class User(db.Model):
+class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
@@ -58,18 +58,9 @@ class AuditLog(db.Model):
     details = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
-class AuthUser(UserMixin):
-    def __init__(self, user):
-        self.id = str(user.id)
-        self.username = user.username
-        self.role = user.role
-
 @login_manager.user_loader
 def load_user(user_id):
-    u = User.query.get(int(user_id))
-    if not u:
-        return None
-    return AuthUser(u)
+    return User.query.get(int(user_id))
 
 def generate_admin_token(user_id, ttl=30):
     token = secrets.token_urlsafe(24)
@@ -97,7 +88,7 @@ def login():
     user = User.query.filter_by(username=username).first()
     if not user or not user.check_password(password):
         return render_template('login.html', error='Invalid credentials')
-    login_user(AuthUser(user))
+    login_user(user)
     user.last_seen = datetime.datetime.utcnow()
     db.session.commit()
     return redirect(url_for('index'))
@@ -125,26 +116,23 @@ def logout():
 @app.route('/admin')
 @login_required
 def admin_console():
-    u = User.query.get(int(current_user.id))
-    if u.role not in ('admin','moderator','helpdesk'):
+    if current_user.role not in ('admin','moderator','helpdesk'):
         return "Forbidden", 403
     return render_template('admin.html')
 
 @app.route('/admin/audit')
 @login_required
 def admin_audit():
-    u = User.query.get(int(current_user.id))
-    if u.role != 'admin':
+    if current_user.role != 'admin':
         return "Forbidden", 403
     return render_template('audit.html')
 
 @app.route('/api/admin_token', methods=['GET'])
 @login_required
 def api_admin_token():
-    u = User.query.get(int(current_user.id))
-    if u.role not in ('admin','moderator','helpdesk'):
+    if current_user.role not in ('admin','moderator','helpdesk'):
         return jsonify({'error':'forbidden'}), 403
-    token = generate_admin_token(u.id, ttl=30)
+    token = generate_admin_token(current_user.id, ttl=30)
     return jsonify({'token': token, 'ttl': 30})
 
 @app.route('/api/players', methods=['GET'])
@@ -167,7 +155,7 @@ def api_players():
 @app.route('/api/modify', methods=['POST'])
 @login_required
 def api_modify():
-    actor = User.query.get(int(current_user.id))
+    actor = current_user
     if actor.role not in ('moderator','admin'):
         return jsonify({'error':'forbidden'}), 403
     data = request.json or {}
@@ -199,7 +187,7 @@ def api_modify():
 def api_action():
     data = request.json or {}
     action = data.get('action')
-    user = User.query.get(int(current_user.id))
+    user = current_user
     if action == 'crime':
         base = 20 + user.rep * 0.05 + user.rank_index * 10
         earn = int(base)
@@ -220,9 +208,9 @@ def api_action():
 @login_required
 def api_notes():
     data = request.json or {}
-    target = int(data.get('user_id') or 0)
+    target_id = int(data.get('user_id') or 0)
     text = data.get('text','')
-    n = Note(user_id=target, author_id=int(current_user.id), text=text)
+    n = Note(user_id=target_id, author_id=current_user.id, text=text)
     db.session.add(n)
     db.session.commit()
     return jsonify({'ok': True})
@@ -230,8 +218,7 @@ def api_notes():
 @app.route('/api/audit', methods=['GET'])
 @login_required
 def api_audit():
-    u = User.query.get(int(current_user.id))
-    if u.role != 'admin':
+    if current_user.role != 'admin':
         return jsonify({'error':'forbidden'}), 403
     limit = int(request.args.get('limit', 200))
     logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(limit).all()
@@ -266,15 +253,4 @@ def health():
     return "OK"
 
 if __name__ == '__main__':
-    db.create_all()
-    if not User.query.filter_by(username='admin').first():
-        admin = User(username='admin', role='admin', cash=10000, rep=10000, rank_index=4)
-        admin.set_password('adminpass')
-        mod = User(username='mod', role='moderator', cash=1000, rep=1000); mod.set_password('modpass')
-        helpd = User(username='help', role='helpdesk', cash=500, rep=200); helpd.set_password('helppass')
-        p1 = User(username='player1', role='player', cash=500, rep=50); p1.set_password('player1')
-        p2 = User(username='player2', role='player', cash=1200, rep=200); p2.set_password('player2')
-        db.session.add_all([admin, mod, helpd, p1, p2])
-        db.session.commit()
-        print('Created sample users: admin/mod/help/player1/player2 (passwords adminpass/modpass/helppass/player1/player2)')
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
