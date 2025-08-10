@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: streetcrimeinc
+    env: docker
+    plan: free # Or your desired plan
+    healthCheckPath: /_health
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          type: psql
+          name: your-postgres-service-name # IMPORTANT: Replace with your DB name
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: your-redis-service-name # IMPORTANT: Replace with your Redis name
+      - key: SECRET_KEY
+        generateValue: true # Or pull from a secret group
